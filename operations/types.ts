@@ -1,0 +1,147 @@
+export type Page<T> = {
+  data: T[];
+  current_page: number;
+  last_page: number;
+  total: number;
+};
+export type CustomerRef = {
+  id: number;
+  first_name: string;
+  last_name: string;
+  phone?: string;
+  email?: string;
+};
+export type Employee = {
+  invitation_accepted?: boolean;
+  id: number;
+  user_id: number;
+  name: string;
+  email: string;
+  role: string;
+  status: string;
+  version: number;
+  permission_overrides: Record<string, boolean>;
+  permissions: string[];
+};
+export type Template = {
+  id: number;
+  name: string;
+  channel: string;
+  purpose: string;
+  subject?: string;
+  body: string;
+  content_sid?: string;
+  content_variables?: Record<string, string>;
+  active: boolean;
+  version: number;
+};
+export type Reminder = {
+  automation_error?: string;
+  id: number;
+  customer_id?: number;
+  customer?: CustomerRef;
+  kind: string;
+  title: string;
+  due_on: string;
+  status: string;
+  notes?: string;
+  optical_record_id?: number;
+  order_id?: number;
+  rule_id?: number;
+  template_id?: number;
+  lead_days: number;
+  version: number;
+  completion_note?: string;
+};
+export type Followup = {
+  category_id?: number;
+  id: number;
+  name: string;
+  trigger: string;
+  offset: number;
+  unit: string;
+  active: boolean;
+  starts_on: string;
+  lead_days: number;
+  template_id?: number;
+  version: number;
+};
+export type Payment = {
+  id: number;
+  kind: string;
+  amount_minor: number;
+  paid_on: string;
+  method: string;
+  reference?: string;
+  reason?: string;
+  reverses_id?: number;
+  actor?: { name: string };
+};
+export type Balance = {
+  id: number;
+  customer_id: number;
+  customer?: CustomerRef;
+  order_id?: number;
+  order?: { number: string; status: string };
+  reference: string;
+  currency: string;
+  price_decimals: number;
+  amount_minor: number;
+  paid_minor: number;
+  balance_minor: number;
+  refund_due_minor: number;
+  effective_status: string;
+  due_on: string;
+  notes?: string;
+  version: number;
+  entries: Payment[];
+};
+export type Message = {
+  id: number;
+  customer_id: number;
+  customer?: CustomerRef;
+  channel: string;
+  purpose: string;
+  subject?: string;
+  body: string;
+  recipient: string;
+  status: string;
+  scheduled_at: string;
+  error_message?: string;
+  error_code?: string;
+  provider_id?: string;
+  version: number;
+  events?: {
+    id: number;
+    status: string;
+    created_at: string;
+    code?: string;
+    reason?: string;
+    actor_id?: number;
+  }[];
+};
+export type Consent = {
+  channel: string;
+  purpose: string;
+  granted: boolean;
+  evidence: string;
+  recorded_at: string;
+};
+export type Activity = {
+  id: number;
+  type: string;
+  title: string;
+  due_on: string;
+  customer_id?: number;
+  customer?: CustomerRef;
+  reference_id: number;
+  source: string;
+  url: string;
+};
+export type Overview = {
+  date: string;
+  timezone: string;
+  horizon: string;
+  counts: Record<string, number>;
+  activities: Page<Activity>;
+};
