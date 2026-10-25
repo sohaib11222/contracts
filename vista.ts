@@ -13,6 +13,7 @@ export interface VistaStatus {
     connection: VistaConnection | null;
     stock_policy: "allocated";
     source: "vista_express";
+    processing?: { worker_active: boolean };
   };
 }
 export interface VistaRecord {

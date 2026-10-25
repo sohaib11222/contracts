@@ -1,0 +1,37 @@
+.ve-auth{--ve-ink:#263e38;--ve-paper:#faf9f6;display:grid;grid-template-columns:minmax(360px,46%) minmax(0,1fr);min-height:100svh;background:var(--ve-paper);color:#25332e;font-family:inherit}
+.ve-auth-story{position:sticky;top:0;height:100svh;min-height:650px;overflow:hidden;background:#675342;color:#fff}
+.ve-auth-photo,.ve-auth-shade{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;object-position:50% 30%}
+.ve-auth-shade{background:linear-gradient(180deg,rgba(24,27,22,.35),transparent 25%,rgba(22,32,26,.06) 48%,rgba(20,32,27,.94))}
+.ve-auth-wordmark{position:absolute;top:36px;left:38px;display:flex;align-items:center;gap:14px;font-size:14px;letter-spacing:.15em;font-weight:600}
+.ve-auth-mark{width:48px;height:48px;display:grid;place-items:center;border:1px solid #ffffff90;border-radius:50%;letter-spacing:-.04em;font-size:20px}
+.ve-auth-edition{display:block;font-size:8px;letter-spacing:.2em;margin-top:5px;opacity:.8}
+.ve-auth-editorial{position:absolute;bottom:0;left:0;right:0;padding:40px}
+.ve-auth-eyebrow{font-size:10px;letter-spacing:.22em;font-weight:600;color:#ead9c3}
+.ve-auth-editorial h2{font-family:Georgia,serif;font-weight:400;font-size:clamp(30px,3.25vw,52px);line-height:1.12;letter-spacing:-.035em;margin:14px 0 18px;color:inherit;max-width:530px}
+.ve-auth-editorial p{font-size:14px;line-height:1.7;color:#eeeee5;max-width:390px;margin:0}
+.ve-auth-caption{border-top:1px solid #ffffff40;margin-top:30px;padding-top:18px;display:flex;justify-content:space-between;gap:16px;font-size:9px;letter-spacing:.08em;opacity:.8}
+.ve-auth-main{display:flex;flex-direction:column;min-width:0;min-height:100svh}
+.ve-auth-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:26px 36px;font-size:14px;letter-spacing:-.02em}
+.ve-auth-toolbar small{margin-left:10px;font-size:10px;text-transform:uppercase;letter-spacing:.1em;color:#66776d}
+.ve-auth-form{width:100%;max-width:620px;margin:auto; padding:36px 48px}
+.ve-auth-form>div{width:100%;max-width:none}
+.ve-auth-form [data-slot=card],.ve-auth-form .card{border:0;box-shadow:none;background:transparent;color:inherit}
+.ve-auth-form [data-slot=card-header],.ve-auth-form [data-slot=card-content],.ve-auth-form .card-body{padding-left:0!important;padding-right:0!important}
+.ve-auth-form [data-slot=card-title],.ve-auth-form h4{font-size:30px;letter-spacing:-.035em;font-weight:600;line-height:1.2;color:var(--ve-ink)}
+.ve-auth-form [data-slot=card-header]{text-align:left;margin-bottom:16px}
+.ve-auth-form input:not([type=checkbox]):not([type=radio]),.ve-auth-form select{min-height:46px;background:#fff;color:#263e38;border-color:#d6dcd5;border-radius:9px}
+.ve-auth-form button[type=submit],.ve-auth-form form button:not([type]),.ve-auth-form .btn-primary{min-height:46px;background:var(--ve-ink);border-color:var(--ve-ink);color:#fff;border-radius:9px}
+.ve-auth-form a{color:#36584b;text-underline-offset:4px}
+.ve-auth-form a:hover{text-decoration:underline}
+.ve-auth-form input:focus-visible,.ve-auth-form button:focus-visible,.ve-auth-form a:focus-visible{outline:2px solid #688b79;outline-offset:3px}
+.ve-auth-footer{padding:24px 36px;color:#6c766f;font-size:11px;display:flex;justify-content:space-between;gap:16px;border-top:1px solid #e6e8e0}
+.ve-auth--admin{--ve-ink:#253d4a;--ve-paper:#f5f7f8}
+.ve-auth--admin .ve-auth-shade{background:linear-gradient(180deg,#172e4845,transparent 30%,#182d3440 55%,#132832f2)}
+@media(min-width:1600px){.ve-auth-form{max-width:700px;padding:48px 70px}.ve-auth-editorial{padding:56px}}
+@media(max-width:1023px){.ve-auth{grid-template-columns:38% minmax(0,1fr)}.ve-auth-editorial{padding:24px}.ve-auth-wordmark{left:24px}.ve-auth-form{padding:30px}.ve-auth-caption{flex-direction:column}.ve-auth-toolbar{padding:24px}.ve-auth-footer{padding:24px}.ve-auth-footer span{display:none}}
+@media(max-width:700px){.ve-auth{display:flex;flex-direction:column}.ve-auth-story{position:relative;height:240px;min-height:240px}.ve-auth-photo{object-position:50% 28%}.ve-auth-wordmark{top:18px;left:20px}.ve-auth-editorial{padding:18px 22px}.ve-auth-editorial h2{font-size:25px;max-width:310px;margin:6px 0 0}.ve-auth-editorial p,.ve-auth-caption,.ve-auth-eyebrow{display:none}.ve-auth-main{min-height:calc(100svh - 240px)}.ve-auth-toolbar{padding:18px 22px}.ve-auth-form{padding:12px 24px 32px;margin:0 auto}.ve-auth-footer{padding:18px 24px}.ve-auth-form [data-slot=card-title],.ve-auth-form h4{font-size:27px}}
+/* The shop may remember dark mode; the authentication canvas has its own palette. */
+.ve-auth:not(.ve-auth--admin) .ve-auth-form .text-muted-foreground{color:#647166}
+.ve-auth:not(.ve-auth--admin) .ve-auth-form button[type=button]{background:#fff;color:var(--ve-ink)}
+.ve-auth:not(.ve-auth--admin) .ve-auth-form button.bg-primary{background:var(--ve-ink);color:#fff}
+.ve-auth:not(.ve-auth--admin) .ve-auth-toolbar button{background:#fff;color:var(--ve-ink);border-color:#d6dcd5}
