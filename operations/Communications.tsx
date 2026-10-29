@@ -1,4 +1,5 @@
 import { useState } from "react";
+import MessageWizard from "./MessageWizard";
 import {
   useOps,
   useLoad,
@@ -11,7 +12,7 @@ import {
   initial,
   json,
 } from "./shared";
-import type { Consent, Message, Page, Template } from "./types";
+import type { Message, Page, Template } from "./types";
 
 export default function Communications({
   customerId,
@@ -26,6 +27,14 @@ export default function Communications({
   const [channel, setChannel] = useState("");
   const [status, setStatus] = useState("");
   const [composing, setComposing] = useState(!!params.get("compose"));
+  const bulkIds = [
+    ...new Set(
+      (params.get("customers") ?? "")
+        .split(",")
+        .filter((v) => /^\d+$/.test(v))
+        .map(Number),
+    ),
+  ];
   const [template, setTemplate] = useState<Template | null | undefined>();
   const [detail, setDetail] = useState<Message>();
   const [action, setAction] = useState<{ row: Message; action: string }>();
@@ -45,9 +54,10 @@ export default function Communications({
       sms: boolean;
       whatsapp: boolean;
       email: boolean;
+      email_issues?: string[];
       processing: { worker_active: boolean; scheduler_active: boolean };
     };
-  }>("/communications/readiness");
+  }>("/communications/readiness", 15000);
   const [tab, setTab] = useState("history");
   return (
     <U.Panel
@@ -75,11 +85,17 @@ export default function Communications({
             </span>
           ))}
         </U.Stack>
-        {ready.data &&
-          (!ready.data.data.processing.worker_active ||
-            !ready.data.data.processing.scheduler_active) && (
-            <U.Alert error>{t("ops.processingStopped")}</U.Alert>
-          )}
+        {ready.data && !ready.data.data.processing.worker_active && (
+          <U.Alert error>{t("ops.workerStopped")}</U.Alert>
+        )}
+        {ready.data && !ready.data.data.processing.scheduler_active && (
+          <U.Alert error>{t("ops.schedulerStopped")}</U.Alert>
+        )}
+        {ready.data?.data.email_issues?.map((issue) => (
+          <U.Alert key={issue} error>
+            {issue}
+          </U.Alert>
+        ))}
         {!customerId && (
           <CustomerChoice
             value={customer}
@@ -89,7 +105,6 @@ export default function Communications({
             }}
           />
         )}
-        {customer && <ConsentPanel customer={Number(customer)} />}
         <U.Stack inline>
           {["history", "templates"].map((name) => (
             <U.Button
@@ -160,7 +175,13 @@ export default function Communications({
                 [m.customer?.first_name, m.customer?.last_name].join(" "),
                 t("ops." + m.channel),
                 <>
-                  {t("ops." + m.status)}
+                  {t(
+                    "ops." +
+                      (m.status === "scheduled" &&
+                      new Date(m.scheduled_at).getTime() <= Date.now()
+                        ? "queued"
+                        : m.status),
+                  )}
                   {m.error_message && <p>{m.error_message}</p>}
                 </>,
                 <U.Stack inline>
@@ -231,15 +252,27 @@ export default function Communications({
             />
           </>
         )}
-        {composing && (
-          <Compose
-            customer={customer}
-            channel={params.get("compose") ?? "sms"}
-            templates={templates.data?.data ?? []}
-            onClose={() => setComposing(false)}
-            onSaved={q.reload}
-          />
-        )}
+        {composing &&
+          can("communications.send") &&
+          (params.get("compose") === "whatsapp" ? (
+            <Compose
+              customer={customer}
+              channel="whatsapp"
+              templates={templates.data?.data ?? []}
+              onClose={() => setComposing(false)}
+              onSaved={q.reload}
+            />
+          ) : (
+            <MessageWizard
+              ids={
+                bulkIds.length ? bulkIds : customer ? [Number(customer)] : []
+              }
+              channel={params.get("compose") ?? "email"}
+              templates={templates.data?.data ?? []}
+              onClose={() => setComposing(false)}
+              onSaved={q.reload}
+            />
+          ))}
         {template !== undefined && (
           <TemplateEditor
             row={template}
@@ -278,111 +311,6 @@ export default function Communications({
           </Edit>
         )}
       </U.Stack>
-    </U.Panel>
-  );
-}
-
-function ConsentPanel({ customer }: { customer: number }) {
-  const { ui: U, t, can, request } = useOps();
-  const [edit, setEdit] = useState(false);
-  const q = useLoad<{
-    data: Consent[];
-    history: (Consent & { created_at: string; actor_id: number })[];
-  }>("/customers/" + customer + "/consents");
-  return (
-    <U.Panel
-      title={t("ops.consents")}
-      actions={
-        can("communications.manage") && (
-          <U.Button secondary onClick={() => setEdit(true)}>
-            {t("ops.recordConsent")}
-          </U.Button>
-        )
-      }
-    >
-      <State {...q} />
-      <U.Table
-        headers={[
-          t("ops.channel"),
-          t("ops.purpose"),
-          t("ops.status"),
-          t("ops.evidence"),
-          t("ops.date"),
-        ]}
-        rows={(q.data?.data ?? []).map((c) => [
-          t("ops." + c.channel),
-          t("ops." + c.purpose),
-          t(c.granted ? "ops.granted" : "ops.revoked"),
-          c.evidence,
-          new Date(c.recorded_at).toLocaleString(),
-        ])}
-      />
-      <details>
-        <summary>{t("ops.consentHistory")}</summary>
-        <U.Table
-          headers={[
-            t("ops.date"),
-            t("ops.channel"),
-            t("ops.purpose"),
-            t("ops.status"),
-            t("ops.evidence"),
-            t("ops.actor"),
-          ]}
-          rows={(q.data?.history ?? []).map((c) => [
-            new Date(c.created_at).toLocaleString(),
-            t("ops." + c.channel),
-            t("ops." + c.purpose),
-            t(c.granted ? "ops.granted" : "ops.revoked"),
-            c.evidence,
-            "#" + c.actor_id,
-          ])}
-        />
-      </details>
-      {edit && (
-        <Edit
-          title={t("ops.recordConsent")}
-          values={{ channel: "sms", purpose: "service", granted: "false" }}
-          fields={[
-            {
-              key: "channel",
-              label: t("ops.channel"),
-              type: "select",
-              options: options(["sms", "whatsapp", "email"], t),
-            },
-            {
-              key: "purpose",
-              label: t("ops.purpose"),
-              type: "select",
-              options: options(["service", "marketing"], t),
-            },
-            {
-              key: "granted",
-              label: t("ops.consent"),
-              type: "select",
-              options: [
-                { value: "true", label: t("ops.granted") },
-                { value: "false", label: t("ops.revoked") },
-              ],
-            },
-            {
-              key: "evidence",
-              label: t("ops.evidence"),
-              type: "textarea",
-              required: true,
-            },
-          ]}
-          onClose={() => setEdit(false)}
-          submit={async (v) => {
-            await request(
-              "/customers/" + customer + "/consents",
-              json("POST", { ...v, granted: v.granted === "true" }),
-            );
-            await q.reload();
-          }}
-        >
-          <p>{t("ops.consentHelp")}</p>
-        </Edit>
-      )}
     </U.Panel>
   );
 }
@@ -686,7 +614,14 @@ function MessageDetails({ id, onClose }: { id: number; onClose: () => void }) {
       {m && (
         <U.Stack>
           <p>
-            {m.recipient} · {t("ops." + m.channel)} · {t("ops." + m.status)}
+            {m.recipient} · {t("ops." + m.channel)} ·{" "}
+            {t(
+              "ops." +
+                (m.status === "scheduled" &&
+                new Date(m.scheduled_at).getTime() <= Date.now()
+                  ? "queued"
+                  : m.status),
+            )}
           </p>
           <strong>{m.subject}</strong>
           <p style={{ whiteSpace: "pre-wrap" }}>{m.body}</p>

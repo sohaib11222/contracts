@@ -28,6 +28,15 @@ export function initialVistaValues(
     if (!row.image_ids && Array.isArray(row.image_indices)) row.image_ids = row.image_indices.map(index => photos[Number(index)-1]?.id).filter(Boolean).map(String);
     delete row.image_indices;
   }
+  for (const key of ['size_volume_variants', 'eye_hygiene_variants']) {
+    for (const row of (saved[key] ?? []) as VistaValues[]) {
+      if (!row.image_ids && row.image_index) {
+        const photo = photos[Number(row.image_index) - 1];
+        row.image_ids = photo ? [String(photo.id)] : [];
+      }
+      delete row.image_index;
+    }
+  }
   return {
     name: product.name,
     sku: product.sku,

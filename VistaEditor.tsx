@@ -25,7 +25,21 @@ function classes(theme: Editor["theme"]) {
     : { input: "form-control", button: "btn btn-outline-primary btn-sm", row: "d-flex flex-wrap align-items-center gap-3", section: "border rounded p-3 mb-3" };
 }
 
-export function VistaImagePicker({ value = [], onChange, label, library = false }: { value?: unknown; onChange?: (v: string[]) => void; label: string; library?: boolean }) {
+export function VistaCommonSections({ fields, render }: {fields: VistaField[]; render: (fields: VistaField[]) => ReactNode}) {
+  const ctx = useEditor();
+  const groups = [
+    { title: 'ops.vista.basic', keys: ['name', 'sku', 'description', 'short_description'] },
+    { title: 'ops.vista.pricing', keys: ['price', 'compare_at_price', 'cost_price', 'stock_status'] },
+    { title: 'ops.vista.listing', keys: ['is_active', 'is_featured'] },
+  ];
+  const known = groups.flatMap(g => g.keys);
+  return <>{groups.map(g => <section className={classes(ctx.theme).section} key={g.title}>
+    <h2 className={ctx.theme === 'shop' ? 'text-lg font-semibold' : 'h5'}>{ctx.t(g.title)}</h2>
+    {render(fields.filter(f => g.keys.includes(f.key)))}
+  </section>)}{render(fields.filter(f => !known.includes(f.key)))}</>;
+}
+
+export function VistaImagePicker({ value = [], onChange, label, library = false, max = 10 }: { value?: unknown; onChange?: (v: string[]) => void; label: string; library?: boolean; max?: number }) {
   const ctx = useEditor();
   const c = classes(ctx.theme);
   const id = useId();
@@ -53,14 +67,14 @@ export function VistaImagePicker({ value = [], onChange, label, library = false 
           {image.scan_status === "clean"
             ? <img src={`${ctx.imageBase}/catalog-images/${image.id}`} alt={image.filename} width={106} height={76} style={{ objectFit: "contain" }} />
             : <span role="status">{image.filename}: {image.scan_status}</span>}
-          {!library && <input type="checkbox" aria-label={`${label}: ${image.filename}`} disabled={image.scan_status !== "clean" || (!selected.includes(String(image.id)) && selected.length >= 10)}
+          {!library && <input type="checkbox" aria-label={`${label}: ${image.filename}`} disabled={image.scan_status !== "clean" || (!selected.includes(String(image.id)) && selected.length >= max)}
             checked={selected.includes(String(image.id))} onChange={e => onChange?.(e.target.checked ? [...selected, String(image.id)] : selected.filter(v => v !== String(image.id)))} />}
           <small style={{ display: "block", overflowWrap: "anywhere" }}>{image.filename}</small>
         </label>
       ))}
     </div>
     <label htmlFor={id}>{ctx.t("ops.vista.uploadImages")}</label>
-    <input id={id} className={c.input} type="file" accept="image/png,image/jpeg" multiple disabled={busy}
+    <input id={id} className={c.input} type="file" accept="image/png,image/jpeg" multiple={max > 1} disabled={busy}
       onChange={async e => {
         const files = Array.from(e.target.files ?? []);
         e.target.value = "";
@@ -68,7 +82,7 @@ export function VistaImagePicker({ value = [], onChange, label, library = false 
         setError(""); setBusy(true);
         const added: string[] = [];
         try {
-          if (!library && files.length + selected.length > 10) throw new Error(ctx.t("ops.vista.tenPhotos"));
+          if (!library && files.length + selected.length > max) throw new Error(ctx.t("ops.vista.photoLimit") + " " + max);
           for (const file of files) {
             if (file.size > 5 * 1024 * 1024 || !["image/jpeg", "image/png"].includes(file.type)) throw new Error(ctx.t("ops.vista.imageLimits"));
             const body = new FormData(); body.append("file", file); body.append("upload_key", crypto.randomUUID());
@@ -94,7 +108,7 @@ export function VistaSpecialField({ field, value, onChange }: { field: VistaFiel
   const id = useId();
   const variants = (ctx.values.variants ?? []) as VistaValues[];
   const packs = (ctx.values.contact_lens_packs ?? []) as VistaValues[];
-  if (field.type === "images") return <VistaImagePicker label={field.label} value={value} onChange={onChange} />;
+  if (field.type === "images") return <VistaImagePicker label={field.label} value={value} onChange={onChange} max={field.maxItems ?? 10} />;
   if (field.type === "prescription") return <PrescriptionEditor value={value} onChange={onChange} />;
   if (field.type === "integer-list") return <div>
     <label htmlFor={id}>{field.label}</label>
