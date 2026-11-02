@@ -45,7 +45,12 @@ export function initialVistaValues(
       .filter(Boolean)
       .join(" · "),
     price: decimal(product.price_minor, product.price_decimals),
-    gallery_image_ids: photos.slice(0, 10).map(i => String(i.id)),
+    stock_status: 'in_stock',
+    // Buyer uses the first gallery image. Preserve the shop's chosen primary
+    // photograph instead of silently featuring the oldest uploaded file.
+    gallery_image_ids: [...photos].sort((a, b) =>
+      Number(b.id === product.primary_image_id) - Number(a.id === product.primary_image_id)
+    ).slice(0, 10).map(i => String(i.id)),
     is_active: true,
     is_featured: false,
     ...saved,
