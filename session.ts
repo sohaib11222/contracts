@@ -21,6 +21,16 @@ export interface SessionUser {
   } | null;
   role: string | null;
   permissions: string[];
+  /** Present only for CRM accounts authenticated through Vista Express 360. */
+  vista_subscription?: {
+    active: boolean;
+    status: string;
+    plan?: Record<string, unknown> | null;
+    features?: Array<{ key?: string; feature_key?: string; title?: string; value?: unknown }> | null;
+    expires_at?: string | null;
+    checked_at?: string | null;
+    renewal_url?: string | null;
+  } | null;
 }
 export function canAccessVerifiedAccount(
   user: SessionUser | null | undefined,
@@ -39,6 +49,10 @@ export class ApiError extends Error {
     message: string,
     public errors: Record<string, string[]> = {},
     public requestId?: string,
+    /** Stable, machine-readable API reason when one is provided. */
+    public code?: string,
+    /** Safe structured data returned with the API error. */
+    public data?: unknown,
   ) {
     super(message);
   }
@@ -95,11 +109,20 @@ export function createApi(actor: "shop" | "admin") {
     if (!response.ok) {
       if (response.status === 401 && !path.startsWith(authPath + "/"))
         window.dispatchEvent(new Event("optical:unauthenticated"));
+      if (body.code === "vista360_subscription_required") {
+        window.dispatchEvent(
+          new CustomEvent("optical:vista-subscription-required", {
+            detail: body.data,
+          }),
+        );
+      }
       throw new ApiError(
         response.status,
         body.message || "Unable to complete this request.",
         body.errors || {},
         body.request_id,
+        typeof body.code === "string" ? body.code : undefined,
+        body.data,
       );
     }
     return body as T;
