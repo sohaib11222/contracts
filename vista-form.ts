@@ -74,8 +74,43 @@ export function selectVistaCategory(
     ...common,
     category_id: Number(id),
     product_type: category?.product_type,
-    ...(category?.product_type === "contact_lens" ? { prescription_values: [], contact_lens_packs: [], contact_lens_qty_options: [], contact_lens_colour_stock: [], is_medical_device: true } : {}),
+    ...(category?.product_type === "contact_lens"
+      ? {
+          prescription_values: [],
+          contact_lens_packs: [],
+          contact_lens_qty_options: [],
+          is_medical_device: true,
+        }
+      : {}),
   };
+}
+
+/**
+ * Vista identifies coloured contact lenses through the selected category
+ * branch ("coloured-lenses"), not merely by the existence of old product
+ * variants. This keeps normal daily/monthly/toric lenses from accidentally
+ * becoming colour products when an older mapping is edited.
+ */
+export function vistaContactLensIsColored(
+  values: VistaValues,
+  meta: VistaMetadata,
+): boolean {
+  if (values.product_type !== "contact_lens") return false;
+  let category = meta.data.categories.find(
+    (item) => item.id === Number(values.sub_category_id),
+  );
+  const seen = new Set<number>();
+  while (category && !seen.has(category.id)) {
+    seen.add(category.id);
+    const source = `${category.slug ?? ""} ${category.name}`.toLowerCase();
+    if (/\bcolou?red\b|colou?red-lenses/.test(source.replace(/[-_]/g, " "))) {
+      return true;
+    }
+    category = meta.data.categories.find(
+      (item) => item.id === category?.parent_id,
+    );
+  }
+  return false;
 }
 
 export function vistaSubcategories(
@@ -112,6 +147,22 @@ export function cleanVistaValues(value: unknown): unknown {
 }
 
 export function vistaAllocatedTotal(values: VistaValues): number | null {
+  const colorStock = values.contact_lens_colour_stock as VistaValues[] | undefined;
+  if (colorStock?.length) {
+    return colorStock.reduce(
+      (sum, row) => sum + Number(row.stock_quantity || 0),
+      0,
+    );
+  }
+
+  const packs = values.contact_lens_packs as VistaValues[] | undefined;
+  if (packs?.some((row) => row.stock_quantity !== undefined && row.stock_quantity !== null)) {
+    return packs.reduce(
+      (sum, row) => sum + Number(row.stock_quantity || 0),
+      0,
+    );
+  }
+
   const rows = values.variants as VistaValues[] | undefined;
 
   if (rows?.length)
@@ -167,12 +218,28 @@ export function publicationValues(
         ]),
     );
 
+  const coloredLens = vistaContactLensIsColored(values, meta);
+  const categoryFields = (category?.fields ?? [])
+    .filter(
+      (field) =>
+        coloredLens ||
+        !["variants", "contact_lens_colour_stock"].includes(field.key),
+    )
+    .map((field) =>
+      !coloredLens && field.key === "contact_lens_packs"
+        ? {
+            ...field,
+            fields: field.fields?.filter((child) => child.key !== "variant_keys"),
+          }
+        : field,
+    );
+
   return cleanVistaValues({
     category_id: values.category_id,
     product_type: category?.product_type,
     sub_category_id: values.sub_category_id,
     ...walk(
-      [...(meta.data.common_fields ?? []), ...(category?.fields ?? [])],
+      [...(meta.data.common_fields ?? []), ...categoryFields],
       values,
     ),
   }) as VistaValues;

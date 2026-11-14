@@ -2,7 +2,7 @@
 import { createContext, useContext, useEffect, useState, useId, useRef, type ReactNode } from "react";
 import type { Product } from "./commerce";
 import type { VistaField, VistaMetadata } from "./vista";
-import type { VistaValues } from "./vista-form";
+import { vistaContactLensIsColored, type VistaValues } from "./vista-form";
 import type { createApi } from "./session";
 
 type Editor = {
@@ -218,18 +218,27 @@ export function VistaImagePicker({ value = [], onChange, label, library = false,
         e.target.value = "";
         if (!files.length) return;
         setError(""); setBusy(true);
-        const added: string[] = [];
+        const failures: string[] = [];
         try {
           if (!library && files.length + selected.length > max) throw new Error(ctx.t("ops.vista.photoLimit") + " " + max);
-          for (const file of files) {
-            if (file.size > 5 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) throw new Error(ctx.t("ops.vista.imageLimits"));
+          const added = (await Promise.all(files.map(async (file) => {
+            if (file.size > 10 * 1024 * 1024 || !["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+              failures.push(`${file.name}: ${ctx.t("ops.vista.imageLimits")}`);
+              return null;
+            }
             const body = new FormData(); body.append("file", file); body.append("upload_key", crypto.randomUUID());
-            const r = await ctx.request<{ data: { id: number } }>(`/products/${ctx.product.id}/images`, { method: "POST", body });
-            added.push(String(r.data.id));
-          }
+            try {
+              const r = await ctx.request<{ data: { id: number } }>(`/products/${ctx.product.id}/images`, { method: "POST", body });
+              return String(r.data.id);
+            } catch (cause) {
+              failures.push(`${file.name}: ${cause instanceof Error ? cause.message : ctx.t("ops.vista.uploadFailed")}`);
+              return null;
+            }
+          }))).filter((id): id is string => id !== null);
+          if (!library && added.length) onChange?.([...selected, ...added]);
+          if (failures.length) setError(failures.join(" · "));
         } catch (e) { setError(e instanceof Error ? e.message : ctx.t("ops.vista.uploadFailed")); }
         finally {
-          if (!library && added.length) onChange?.([...selected, ...added]);
           try { setProduct((await ctx.request<{ data: Product }>(`/products/${ctx.product.id}`)).data); } catch (e) { setError(e instanceof Error ? e.message : ""); }
           ctx.refresh(); setBusy(false);
         }
@@ -345,15 +354,18 @@ function PrescriptionEditor({ value, onChange }: { value: unknown; onChange: (v:
   function close() { dialog.current?.close(); setEditing(null); }
   return <fieldset className={c.section}><legend>{ctx.t("ops.vista.prescription")}</legend>
     <div className={c.row}>{Object.entries(labels).filter(([k]) => k !== "sph" || astigmatism).map(([k, label]) =>
-      <button type="button" className={c.button} key={k} aria-pressed={active === k} onClick={() => setTab(k)}>{label}</button>)}</div>
+      <button type="button" className={`${c.button} ${active === k ? "border-primary bg-primary text-primary-foreground shadow-sm" : ""}`} key={k} aria-pressed={active === k} onClick={() => setTab(k)}>{label}</button>)}</div>
+    <div className={ctx.theme === "shop" ? "rounded-xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm" : "alert alert-primary py-2"}>
+      <strong>{ctx.t("ops.vista.selectedPrescription")}</strong> {labels[active]}
+    </div>
     {eyeSpecific && <div className={c.row}>{["all", "right", "left"].map(e =>
-      <button type="button" key={e} className={c.button} aria-pressed={eye === e} onClick={() => setEye(e)}>{ctx.t("ops.vista.eye." + e)}</button>)}
+      <button type="button" key={e} className={`${c.button} ${eye === e ? "border-primary bg-primary text-primary-foreground shadow-sm" : ""}`} aria-pressed={eye === e} onClick={() => setEye(e)}>{ctx.t("ops.vista.eye." + e)}</button>)}
       <button type="button" className={c.button} onClick={() => {
         const existing = new Set(rows.filter(row => row.field_type === stored && row.eye_type === 'left').map(row => String(row.value).trim()));
         const copies = rows.filter(row => row.field_type === stored && row.eye_type === 'right' && !existing.has(String(row.value).trim()));
         onChange([...rows, ...copies.map((row, i) => ({...row, option_key: crypto.randomUUID(), eye_type: 'left', sort_order: rows.length + i}))].slice(0, 1000));
       }}>{ctx.t('ops.vista.copyRightLeft')}</button></div>}
-    <button type="button" className={c.button} onClick={() => open(rows.length)} disabled={rows.length >= 1000}>{ctx.t("ops.vista.addValue")}</button>
+    <button type="button" className={c.button} onClick={() => open(rows.length)} disabled={rows.length >= 1000}>{ctx.t("ops.vista.addValue")} · {labels[active]}</button>
     <details className={c.section}><summary>{ctx.t('ops.vista.bulk')}</summary>
       <label>{ctx.t("ops.vista.bulk")}<textarea className={c.input} value={bulk} onChange={e => setBulk(e.target.value)} /></label>
       <button type="button" className={c.button} disabled={!bulk.trim()} onClick={() => add(bulk.split(/[,\n]/).map(v => v.trim()).filter(Boolean))}>{ctx.t("ops.vista.addValues")}</button>
@@ -400,13 +412,21 @@ export function VistaContactCategory({ values, onChange }: { values: VistaValues
   const selected = ctx.meta.data.categories.find(c => c.id === Number(values.sub_category_id));
   const parent = selected?.parent_id === Number(values.category_id) ? selected : ctx.meta.data.categories.find(c => c.id === selected?.parent_id);
   const children = ctx.meta.data.categories.filter(c => c.parent_id === parent?.id);
+  const updateCategory = (subCategoryId: number | undefined) => {
+    const next: VistaValues = { ...values, sub_category_id: subCategoryId };
+    if (!vistaContactLensIsColored(next, ctx.meta)) {
+      delete next.variants;
+      delete next.contact_lens_colour_stock;
+    }
+    onChange(next);
+  };
   return <div className={c.section}>
-    <label htmlFor={`${id}-category`}>{ctx.t("ops.vista.subcategory")}</label><select id={`${id}-category`} className={c.input} value={parent?.id ?? ""} onChange={e => onChange({ ...values, sub_category_id: e.target.value ? Number(e.target.value) : undefined })}>
+    <label htmlFor={`${id}-category`}>{ctx.t("ops.vista.subcategory")}</label><select id={`${id}-category`} className={c.input} value={parent?.id ?? ""} onChange={e => updateCategory(e.target.value ? Number(e.target.value) : undefined)}>
       <option value="">{ctx.t("ops.choose")}</option>
       {ctx.meta.data.categories.filter(c => c.parent_id === Number(values.category_id)).map(c => <option value={c.id} key={c.id}>{c.name}</option>)}
     </select>
     {children.length > 0 && <div><label htmlFor={`${id}-type`}>{ctx.t("ops.vista.lensType")}</label><select id={`${id}-type`} className={c.input} required value={selected?.id !== parent?.id ? selected?.id ?? "" : ""}
-      onChange={e => onChange({ ...values, sub_category_id: e.target.value ? Number(e.target.value) : parent?.id })}>
+      onChange={e => updateCategory(e.target.value ? Number(e.target.value) : parent?.id)}>
       <option value="">{ctx.t("ops.choose")}</option>{children.map(c => <option value={c.id} key={c.id}>{c.name}</option>)}
     </select></div>}
   </div>;
@@ -414,17 +434,26 @@ export function VistaContactCategory({ values, onChange }: { values: VistaValues
 
 export const vistaSpecialTypes = ["palette", "color", "images", "prescription", "integer-list", "variant-select", "variant-multiple", "pack-select"];
 
-export function VistaStepNavigation({ step, onChange }: { step: number; onChange: (step: number) => void }) {
+export function VistaStepNavigation({ step, onChange, showProgress = true, showActions = true }: { step: number; onChange: (step: number) => void; showProgress?: boolean; showActions?: boolean }) {
   const ctx = useEditor(); const c = classes(ctx.theme);
-  return <div className={c.section}>
-    <nav className={c.row} aria-label={ctx.t("ops.vista.prescription")}>
-      {[0, 1, 2].map(n => <button key={n} className={c.button} type="button" aria-current={n === step ? "step" : undefined}
-        onClick={e => { if (n < step || e.currentTarget.closest("form")?.reportValidity()) onChange(n); }}>{n + 1}. {ctx.t("ops.vista.step" + n)}</button>)}
-    </nav>
-    <p>{ctx.t("ops.vista.atomic")}</p>
-    <div className={c.row}>
-      {step > 0 && <button type="button" className={c.button} onClick={() => onChange(step - 1)}>{ctx.t("ops.vista.back")}</button>}
-      {step < 2 && <button type="button" className={c.button} onClick={e => { if (e.currentTarget.closest("form")?.reportValidity()) onChange(step + 1); }}>{ctx.t("ops.vista.next")}</button>}
-    </div>
+  const go = (next: number, validate = false, element?: HTMLElement) => {
+    if (validate && !element?.closest("form")?.reportValidity()) return;
+    onChange(next);
+    window.requestAnimationFrame(() => {
+      document.querySelector("[data-vista-editor]")?.scrollIntoView({ behavior: "smooth", block: "start" });
+    });
+  };
+  return <div className={showProgress ? c.section : c.row}>
+    {showProgress && <>
+      <nav className={c.row} aria-label={ctx.t("ops.vista.prescription")}>
+        {[0, 1, 2].map(n => <button key={n} className={`${c.button} ${n === step ? "border-primary bg-primary text-primary-foreground shadow-sm" : n < step ? "border-emerald-300 bg-emerald-50 text-emerald-800" : ""}`} type="button" aria-current={n === step ? "step" : undefined}
+          onClick={e => { if (n <= step || e.currentTarget.closest("form")?.reportValidity()) go(n, false); }}>{n + 1}. {ctx.t("ops.vista.step" + n)}</button>)}
+      </nav>
+      <p>{ctx.t("ops.vista.atomic")}</p>
+    </>}
+    {showActions && <div className={c.row}>
+      {step > 0 && <button type="button" className={c.button} onClick={e => go(step - 1, false, e.currentTarget)}>{ctx.t("ops.vista.back")}</button>}
+      {step < 2 && <button type="button" className={c.button} onClick={e => go(step + 1, true, e.currentTarget)}>{ctx.t("ops.vista.next")}</button>}
+    </div>}
   </div>;
 }
