@@ -17,22 +17,18 @@ type Recipient = {
 };
 export default function MessageWizard({
   ids: initialIds,
-  channel: initialChannel,
   templates,
   onClose,
   onSaved,
 }: {
   ids: number[];
-  channel: string;
   templates: Template[];
   onClose: () => void;
   onSaved: () => Promise<void>;
 }) {
   const { ui: U, t, request, params } = useOps();
-  const [step, setStep] = useState(0),
-    [channel, setChannel] = useState(
-      initialChannel === "sms" ? "sms" : "email",
-    );
+  const [step, setStep] = useState(0);
+  const channel = "email";
   const [timing, setTiming] = useState("now"),
     [date, setDate] = useState(""),
     [delay, setDelay] = useState("0");
@@ -48,7 +44,7 @@ export default function MessageWizard({
     [error, setError] = useState(""),
     [done, setDone] = useState(false);
   const readiness = useLoad<{
-    data: { email: boolean; sms: boolean; email_issues?: string[] };
+    data: { email: boolean; email_issues?: string[] };
   }>("/communications/readiness", 15000);
   useEffect(() => {
     let active = true;
@@ -87,7 +83,7 @@ export default function MessageWizard({
       customer_ids: ids,
       channel,
       purpose,
-      subject: channel === "email" ? subject : null,
+      subject,
       body,
       creation_key: key,
       scheduled_at: timing === "date" ? new Date(date).toISOString() : null,
@@ -95,7 +91,7 @@ export default function MessageWizard({
     };
   }
   const valid =
-    step === 0 ||
+    (step === 0 && !!readiness.data?.data.email) ||
     (step === 1 &&
       (timing === "now" ||
         (timing === "date" && new Date(date).getTime() > Date.now()) ||
@@ -107,8 +103,7 @@ export default function MessageWizard({
     (step === 3 &&
       body.trim().length > 0 &&
       body.length <= 4000 &&
-      (channel !== "email" ||
-        (subject.trim().length > 0 && subject.length <= 200)));
+      subject.trim().length > 0 && subject.length <= 200);
   async function next() {
     setError("");
     if (step !== 3) {
@@ -192,28 +187,11 @@ export default function MessageWizard({
             {error && <U.Alert error>{error}</U.Alert>}
             {step === 0 && (
               <>
-                <U.Field
-                  disabled={busy}
-                  label={t("ops.channel")}
-                  type="select"
-                  options={options(["email", "sms"], t)}
-                  value={channel}
-                  onChange={(v) =>
-                    edit(() => {
-                      setChannel(v);
-                      setSubject("");
-                      setBody("");
-                    })
-                  }
-                />
-                {readiness.data &&
-                  !readiness.data.data[channel as "email" | "sms"] && (
+                <U.Alert>{t("ops.email")}</U.Alert>
+                {readiness.data && !readiness.data.data.email && (
                     <U.Alert error>
                       {t("wizard.notReady")}
-                      {channel === "email" &&
-                        readiness.data.data.email_issues?.map((issue) => (
-                          <p key={issue}>{issue}</p>
-                        ))}
+                      {readiness.data.data.email_issues?.map((issue) => <p key={issue}>{issue}</p>)}
                     </U.Alert>
                   )}
               </>
@@ -326,15 +304,13 @@ export default function MessageWizard({
                   value={purpose}
                   onChange={(v) => edit(() => setPurpose(v))}
                 />
-                {channel === "email" && (
-                  <U.Field
-                    disabled={busy}
-                    label={t("ops.subject")}
-                    required
-                    value={subject}
-                    onChange={(v) => edit(() => setSubject(v))}
-                  />
-                )}
+                <U.Field
+                  disabled={busy}
+                  label={t("ops.subject")}
+                  required
+                  value={subject}
+                  onChange={(v) => edit(() => setSubject(v))}
+                />
                 <U.Field
                   disabled={busy}
                   label={t("ops.message")}
@@ -357,7 +333,7 @@ export default function MessageWizard({
                       ? delay + " " + t("ops.delayMinutes")
                       : ""}
                 </p>
-                {channel === "email" && <strong>{subject}</strong>}
+                <strong>{subject}</strong>
                 <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                   {body}
                 </p>

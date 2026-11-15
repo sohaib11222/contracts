@@ -334,20 +334,26 @@ export function CustomerActions({
   reminderId?: number;
 }) {
   const { ui: U, t, can } = useOps();
+  const whatsapp = phone?.replace(/\D/g, "");
   return (
     <U.Stack inline>
       {can("customers.read") && (
         <U.Link to={"/customers/" + id}>{t("ops.customer")}</U.Link>
       )}
-      {can("communications.send") &&
-        ["whatsapp", "sms", "email"].map((channel) => (
-          <U.Link
-            key={channel}
-            to={`/communications?customer=${id}&compose=${channel}${reminderId ? `&reminder=${reminderId}` : ""}`}
-          >
-            {t("ops." + channel)}
-          </U.Link>
-        ))}
+      {can("communications.send") && (
+        <U.Link to={`/communications?customer=${id}&compose=email${reminderId ? `&reminder=${reminderId}` : ""}`}>
+          {t("ops.email")}
+        </U.Link>
+      )}
+      {whatsapp && (
+        <a
+          href={`https://wa.me/${whatsapp}`}
+          target="_blank"
+          rel="noopener noreferrer"
+        >
+          {t("ops.whatsapp")}
+        </a>
+      )}
       {phone && (
         <a href={"tel:" + phone.replace(/[^+0-9]/g, "")}>{t("ops.call")}</a>
       )}
