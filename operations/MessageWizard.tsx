@@ -46,6 +46,8 @@ export default function MessageWizard({
     [error, setError] = useState(""),
     [done, setDone] = useState(false);
   const selectedCount = ids.length === new Set(initialIds).size ? (initialRecipientCount ?? ids.length) : ids.length;
+  const countText = (translationKey: string, count: number) =>
+    t(translationKey).replace("{count}", String(count));
   const readiness = useLoad<{
     data: { email: boolean; email_issues?: string[] };
   }>("/communications/readiness", 15000);
@@ -274,7 +276,7 @@ export default function MessageWizard({
                     </U.Button>,
                   ])}
                 />
-                {ids.length > 100 && <p>{t("ops.recipientListTruncated", { count: ids.length - 100 })}</p>}
+                {ids.length > 100 && <p>{countText("ops.recipientListTruncated", ids.length - 100)}</p>}
               </>
             )}
             {step === 3 && (
@@ -341,7 +343,7 @@ export default function MessageWizard({
                 <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                   {body}
                 </p>
-                <p><strong>{t("ops.recipientCount", { count: selectedCount })}</strong></p>
+                <p><strong>{countText("ops.recipientCount", selectedCount)}</strong></p>
                 <U.Table
                   headers={[
                     t("ops.customer"),
@@ -354,7 +356,7 @@ export default function MessageWizard({
                     t(r.eligible ? "ops.eligible" : "ops.bulk." + r.reason),
                   ])}
                 />
-                {review.length > 100 && <p>{t("ops.recipientListTruncated", { count: review.length - 100 })}</p>}
+                {review.length > 100 && <p>{countText("ops.recipientListTruncated", review.length - 100)}</p>}
                 <U.Button
                   disabled={
                     busy ||
