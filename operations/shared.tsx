@@ -336,7 +336,7 @@ export function CustomerActions({
   reminderId?: number;
 }) {
   const { ui: U, t, can } = useOps();
-  const whatsapp = phone?.replace(/\D/g, "");
+  const whatsapp = phone ? whatsappWebUrl(phone) : null;
   return (
     <U.Stack inline>
       {can("customers.read") && (
@@ -349,9 +349,12 @@ export function CustomerActions({
       )}
       {whatsapp && (
         <a
-          href={`https://wa.me/${whatsapp}`}
-          target="_blank"
-          rel="noopener noreferrer"
+          href={whatsapp}
+          target="vista-express-whatsapp"
+          onClick={(event) => {
+            event.preventDefault();
+            openWhatsAppWeb(whatsapp);
+          }}
         >
           {t("ops.whatsapp")}
         </a>
@@ -361,6 +364,26 @@ export function CustomerActions({
       )}
     </U.Stack>
   );
+}
+
+/**
+ * WhatsApp blocks embedding its web client in an iframe. Open the official
+ * web-client chat URL directly instead of its api.whatsapp.com interstitial.
+ * The named window is intentionally reused for subsequent customer chats.
+ */
+export function whatsappWebUrl(phone: string, message?: string): string {
+  const recipient = phone.replace(/\D/g, "").replace(/^00/, "");
+  const url = new URL("https://web.whatsapp.com/send");
+  url.searchParams.set("phone", recipient);
+  if (message?.trim()) url.searchParams.set("text", message.trim());
+  return url.toString();
+}
+
+export function openWhatsAppWeb(url: string): void {
+  const chat = window.open(url, "vista-express-whatsapp");
+  // A click handler is a trusted user gesture, so a browser normally permits
+  // this. If a user blocks pop-ups, the regular href remains available.
+  chat?.focus();
 }
 export function today(zone: string) {
   return new Intl.DateTimeFormat("en-CA", {
