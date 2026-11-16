@@ -5,49 +5,49 @@ import type { Message, Page, Template } from "./types";
 
 /** Email history, reusable email templates, and the guided email composer. */
 export default function Communications({ customerId }: { customerId?: number }) {
-  const { ui: U, t, can, params, request } = useOps();
+  const { ui: U, t, can, params, request, initialRecipientIds, initialRecipientCount } = useOps();
   const [customer, setCustomer] = useState(customerId ? String(customerId) : params.get("customer") ?? "");
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState("");
+  const [purpose, setPurpose] = useState("");
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
   const [composing, setComposing] = useState(!!params.get("compose"));
   const [template, setTemplate] = useState<Template | null | undefined>();
   const [detail, setDetail] = useState<Message>();
   const [action, setAction] = useState<{ row: Message; action: "cancel" | "retry" | "resolve" }>();
   const bulkIds = [...new Set((params.get("customers") ?? "").split(",").filter((value) => /^\d+$/.test(value)).map(Number))];
   const q = useLoad<Page<Message>>(
-    "/communications/messages?" + new URLSearchParams({ customer_id: customer, channel: "email", status, page: String(page) }),
+    "/communications/messages?" + new URLSearchParams({ customer_id: customer, channel: "email", purpose, status, date_from: dateFrom, date_to: dateTo, page: String(page) }),
     15000,
   );
   const templates = useLoad<{ data: Template[] }>("/communications/templates");
-  const ready = useLoad<{
-    data: { email: boolean; immediate_email: boolean; email_issues?: string[]; processing: { worker_active: boolean; scheduler_active: boolean } };
-  }>("/communications/readiness", 15000);
   const [tab, setTab] = useState<"history" | "templates">("history");
 
   return (
     <U.Panel title={t("ops.communications")} actions={can("communications.send") && <U.Button onClick={() => setComposing(true)}>{t("ops.compose")}</U.Button>}>
       <U.Stack>
-        <U.Alert>Use email for CRM delivery. WhatsApp opens WhatsApp Web so the staff member reviews and sends the message personally.</U.Alert>
-        <State {...ready} />
-        <p>{t("ops.email")}: {t(ready.data?.data.email ? "ops.ready" : "ops.notConfigured")}</p>
-        {ready.data && !ready.data.data.immediate_email && !ready.data.data.processing.worker_active && <U.Alert error>{t("ops.workerStopped")}</U.Alert>}
-        {ready.data && !ready.data.data.processing.scheduler_active && <U.Alert error>Scheduled email and automatic follow-ups need the scheduler. Send now remains available.</U.Alert>}
-        {ready.data?.data.email_issues?.map((issue) => <U.Alert key={issue} error>{issue}</U.Alert>)}
-        {!customerId && <CustomerChoice value={customer} onChange={(value) => { setCustomer(value); setPage(1); }} />}
         <U.Stack inline>
           <U.Button secondary={tab !== "history"} onClick={() => setTab("history")}>{t("ops.history")}</U.Button>
           <U.Button secondary={tab !== "templates"} onClick={() => setTab("templates")}>{t("ops.templates")}</U.Button>
         </U.Stack>
         {tab === "history" ? (
           <>
-            <Choice label={t("ops.status")} value={status} onChange={(value) => { setStatus(value); setPage(1); }} choices={[{ value: "", label: t("ops.all") }, ...options(["scheduled", "blocked", "sending", "sent", "failed", "retry_wait", "uncertain", "reviewed", "cancelled"], t)]} />
+            <U.Stack inline>
+              {!customerId && <CustomerChoice value={customer} onChange={(value) => { setCustomer(value); setPage(1); }} />}
+              <Choice label={t("ops.status")} value={status} onChange={(value) => { setStatus(value); setPage(1); }} choices={[{ value: "", label: t("ops.all") }, ...options(["scheduled", "accepted", "sending", "sent", "delivered", "failed", "retry_wait", "uncertain", "reviewed", "cancelled"], t)]} />
+              <Choice label={t("ops.type")} value={purpose} onChange={(value) => { setPurpose(value); setPage(1); }} choices={[{ value: "", label: t("ops.all") }, ...options(["service", "marketing"], t)]} />
+              <U.Field label={t("ops.from")} type="date" value={dateFrom} onChange={(value) => { setDateFrom(value); setPage(1); }} />
+              <U.Field label={t("ops.to")} type="date" value={dateTo} onChange={(value) => { setDateTo(value); setPage(1); }} />
+            </U.Stack>
             <State {...q} />
             <U.Table
-              headers={[t("ops.date"), t("ops.customer"), t("ops.channel"), t("ops.status"), t("ops.actions")]}
+              headers={[t("ops.customer"), t("ops.subject"), t("ops.date"), t("ops.type"), t("ops.status"), t("ops.actions")]}
               rows={(q.data?.data ?? []).map((message) => [
-                new Date(message.scheduled_at).toLocaleString(),
                 [message.customer?.first_name, message.customer?.last_name].filter(Boolean).join(" "),
-                t("ops.email"),
+                message.subject || "—",
+                new Date(message.scheduled_at).toLocaleString(),
+                t("ops." + message.purpose),
                 <>{t("ops." + (message.status === "scheduled" && new Date(message.scheduled_at).getTime() <= Date.now() ? "queued" : message.status))}{message.error_message && <p>{message.error_message}</p>}</>,
                 <U.Stack inline>
                   <U.Button secondary onClick={() => setDetail(message)}>{t("ops.details")}</U.Button>
@@ -75,7 +75,7 @@ export default function Communications({ customerId }: { customerId?: number }) 
             />
           </>
         )}
-        {composing && can("communications.send") && <MessageWizard ids={bulkIds.length ? bulkIds : customer ? [Number(customer)] : []} templates={(templates.data?.data ?? []).filter((row) => row.channel === "email")} onClose={() => setComposing(false)} onSaved={q.reload} />}
+        {composing && can("communications.send") && <MessageWizard ids={bulkIds.length ? bulkIds : initialRecipientIds.length ? initialRecipientIds : customer ? [Number(customer)] : []} recipientCount={bulkIds.length ? bulkIds.length : initialRecipientIds.length ? initialRecipientCount || initialRecipientIds.length : customer ? 1 : 0} templates={(templates.data?.data ?? []).filter((row) => row.channel === "email")} onClose={() => setComposing(false)} onSaved={q.reload} />}
         {template !== undefined && <TemplateEditor row={template} onClose={() => setTemplate(undefined)} onSaved={templates.reload} />}
         {detail && <MessageDetails id={detail.id} onClose={() => setDetail(undefined)} />}
         {action && <Edit title={t("ops." + action.action)} values={{}} fields={[{ key: "reason", label: t("ops.reason"), type: "textarea", required: true }]} onClose={() => setAction(undefined)} submit={async (values) => {

@@ -17,11 +17,13 @@ type Recipient = {
 };
 export default function MessageWizard({
   ids: initialIds,
+  recipientCount: initialRecipientCount,
   templates,
   onClose,
   onSaved,
 }: {
   ids: number[];
+  recipientCount?: number;
   templates: Template[];
   onClose: () => void;
   onSaved: () => Promise<void>;
@@ -43,6 +45,7 @@ export default function MessageWizard({
   const [busy, setBusy] = useState(false),
     [error, setError] = useState(""),
     [done, setDone] = useState(false);
+  const selectedCount = ids.length === new Set(initialIds).size ? (initialRecipientCount ?? ids.length) : ids.length;
   const readiness = useLoad<{
     data: { email: boolean; email_issues?: string[] };
   }>("/communications/readiness", 15000);
@@ -99,7 +102,7 @@ export default function MessageWizard({
           Number.isInteger(Number(delay)) &&
           Number(delay) > 0 &&
           Number(delay) <= 525600))) ||
-    (step === 2 && ids.length > 0 && ids.length <= 100) ||
+    (step === 2 && ids.length > 0 && ids.length <= 1000) ||
     (step === 3 &&
       body.trim().length > 0 &&
       body.length <= 4000 &&
@@ -242,7 +245,7 @@ export default function MessageWizard({
                     busy ||
                     !pick ||
                     ids.includes(Number(pick)) ||
-                    ids.length >= 100
+                    ids.length >= 1000
                   }
                   onClick={() =>
                     edit(() => {
@@ -254,11 +257,11 @@ export default function MessageWizard({
                   {t("wizard.addRecipient")}
                 </U.Button>
                 <p>
-                  {t("ops.selectedCustomers")}: {ids.length}/100
+                  {t("ops.selectedCustomers")}: {selectedCount}
                 </p>
                 <U.Table
                   headers={[t("ops.customer"), t("ops.actions")]}
-                  rows={ids.map((id) => [
+                  rows={ids.slice(0, 100).map((id) => [
                     names[id] ?? "#" + id,
                     <U.Button
                       secondary
@@ -271,6 +274,7 @@ export default function MessageWizard({
                     </U.Button>,
                   ])}
                 />
+                {ids.length > 100 && <p>{t("ops.recipientListTruncated", { count: ids.length - 100 })}</p>}
               </>
             )}
             {step === 3 && (
@@ -337,18 +341,20 @@ export default function MessageWizard({
                 <p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>
                   {body}
                 </p>
+                <p><strong>{t("ops.recipientCount", { count: selectedCount })}</strong></p>
                 <U.Table
                   headers={[
                     t("ops.customer"),
                     t("ops.recipient"),
                     t("ops.status"),
                   ]}
-                  rows={review.map((r) => [
+                  rows={review.slice(0, 100).map((r) => [
                     r.name,
                     r.recipient ?? "—",
                     t(r.eligible ? "ops.eligible" : "ops.bulk." + r.reason),
                   ])}
                 />
+                {review.length > 100 && <p>{t("ops.recipientListTruncated", { count: review.length - 100 })}</p>}
                 <U.Button
                   disabled={
                     busy ||

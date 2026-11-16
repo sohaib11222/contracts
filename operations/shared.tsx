@@ -58,6 +58,8 @@ export type Workspace = {
   actorId: number;
   timezone: string;
   invitationUrl: (token: string) => string;
+  initialRecipientIds: number[];
+  initialRecipientCount: number;
 };
 export const Context = createContext<Workspace | null>(null);
 export function useOps() {
