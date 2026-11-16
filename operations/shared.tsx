@@ -352,8 +352,7 @@ export function CustomerActions({
           href={whatsapp}
           target="vista-express-whatsapp"
           onClick={(event) => {
-            event.preventDefault();
-            openWhatsAppWeb(whatsapp);
+            if (openWhatsAppWeb(whatsapp)) event.preventDefault();
           }}
         >
           {t("ops.whatsapp")}
@@ -379,11 +378,20 @@ export function whatsappWebUrl(phone: string, message?: string): string {
   return url.toString();
 }
 
-export function openWhatsAppWeb(url: string): void {
-  const chat = window.open(url, "vista-express-whatsapp");
-  // A click handler is a trusted user gesture, so a browser normally permits
-  // this. If a user blocks pop-ups, the regular href remains available.
-  chat?.focus();
+export function openWhatsAppWeb(url: string): boolean {
+  // Create or reuse a window owned by this CRM, then navigate that window.
+  // Browsers do not permit a site to locate/control an unrelated WhatsApp tab.
+  const chat = window.open("about:blank", "vista-express-whatsapp");
+  if (!chat) return false;
+
+  try {
+    chat.opener = null;
+    chat.location.href = url;
+    chat.focus();
+    return true;
+  } catch {
+    return false;
+  }
 }
 export function today(zone: string) {
   return new Intl.DateTimeFormat("en-CA", {
