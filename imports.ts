@@ -21,6 +21,14 @@ export interface CustomerImport {
   sheets: string[] | null;
   headers: string[] | null;
   mapping: Partial<Record<CustomerField, number>> | null;
+  automatic?: boolean;
+  additional_mapping?: Record<number, { action: "custom" | "ignore"; key?: string }> | null;
+  mapping_diagnostics?: {
+    mapped?: Partial<Record<CustomerField, { column: number; header: string; confidence: number }>>;
+    needs_mapping?: CustomerField[];
+    additional_fields?: { column: number; header: string; key: string }[];
+    date_format_confidence?: number;
+  } | null;
   delimiter: string;
   date_format: string;
   total_rows: number;
@@ -33,6 +41,7 @@ export interface ImportRow {
   row_number: number;
   raw_values: string[];
   payload: Record<CustomerField, string | null> | null;
+  custom_fields?: Record<string, string> | null;
   errors: string[] | null;
   matches:
     | Pick<

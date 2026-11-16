@@ -9,6 +9,8 @@ export interface Customer {
   city: string | null;
   postal_code: string | null;
   sex: string | null;
+  /** Additional columns preserved from a customer import. */
+  custom_fields?: Record<string, string>;
   status: "active" | "archived";
   version: number;
   source: string;
